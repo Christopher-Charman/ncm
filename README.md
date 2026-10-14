@@ -97,14 +97,13 @@ This runs one generation shard per visible GPU, merges them, and prints ROUGE-1/
 
 ```bibtex
 @misc{kumbong2026nextconcept,
-  title   = {Next-Concept Modeling: Fast, Parallel Coarse-to-Fine Text Generation},
-  author  = {Kumbong, Hermann and Khare, Ishan S. and Mlauzi, Iddah and Woen, Andrew and Ding, Charles and Buchanan, E. Kelly and Arora, Simran and Mirhoseini, Azalia and R{\'e}, Christopher},
-year={2026},
-  journal = {arXiv preprint},
-  year    = {2026},
-  eprint={2610.14162},
-  archivePrefix={arXiv},
-  url={https://arxiv.org/abs/2610.14162},
+      title={Next-Concept Modeling: Fast, Parallel Coarse-to-Fine Text Generation},
+      author={Hermann Kumbong and Ishan S. Khare and Iddah Mlauzi and Andrew Woen and Charles Ding and E. Kelly Buchanan and Simran Arora and Azalia Mirhoseini and Christopher Ré},
+      year={2026},
+      eprint={2610.14162},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2610.14162},
 }
 ```
 
