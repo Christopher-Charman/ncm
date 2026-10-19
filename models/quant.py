@@ -649,7 +649,9 @@ class MultiscaleResidualVectorQuantizer(VectorQuantizerBaseClass):
                 z_q_level = emb_at_level
             z_q_level = self._apply_quant_resi(z_q_level, level_idx)
             z_hat.add_(z_q_level)
-            z_hats.append(z_hat)
+            # Capture the state at this level; later in-place additions must not
+            # retroactively mutate earlier coarse-to-fine reconstructions.
+            z_hats.append(z_hat.clone())
             if return_zlevels:
                 z_levels.append(
                     F.interpolate(
