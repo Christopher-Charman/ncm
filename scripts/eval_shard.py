@@ -5,7 +5,6 @@ sys.path.insert(0, os.environ.get("NCM_ROOT", os.getcwd()))
 from models.next_concept import NextConceptTransformer
 from tokenization.vqvae_tokenizer import VQVAETokenizer
 from transformers import AutoTokenizer
-from utils.checkpoint import load_restricted_checkpoint
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--config", required=True)
@@ -42,6 +41,8 @@ adj = str(a.adj if a.adj is not None else G.get("adjacency_penalty", "") or "")
 split = a.split or CFG.eval.get("split", "test")
 n = a.n or int(CFG.eval.get("n_docs", 0))
 bs = a.bs or int(CFG.eval.batch_size)
+
+from utils.checkpoint import load_restricted_checkpoint
 
 CFG.tokenizer.vqvae.checkpoint_path = os.path.join(ck, CFG.checkpoints.tokenizer)
 for key, name in (('vocab_file_path', 'bpe_vocab'), ('merges_file_path', 'bpe_merges')):
