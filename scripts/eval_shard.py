@@ -3,9 +3,9 @@ import torch
 from omegaconf import OmegaConf
 sys.path.insert(0, os.environ.get("NCM_ROOT", os.getcwd()))
 from models.next_concept import NextConceptTransformer
-from utils.checkpoint import load_restricted_checkpoint
 from tokenization.vqvae_tokenizer import VQVAETokenizer
 from transformers import AutoTokenizer
+from utils.checkpoint import load_restricted_checkpoint
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--config", required=True)
