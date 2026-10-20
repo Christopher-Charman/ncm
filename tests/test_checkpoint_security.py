@@ -10,12 +10,40 @@ from unittest.mock import patch
 from utils.checkpoint import load_restricted_checkpoint, torch_version_tuple
 
 
+def direct_torch_load_calls(tree):
+    """Find common direct loader aliases, not a full Python taint analyser."""
+    torch_module_names = set()
+    torch_load_names = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "torch":
+                    torch_module_names.add(alias.asname or "torch")
+        elif isinstance(node, ast.ImportFrom) and node.module == "torch":
+            for alias in node.names:
+                if alias.name == "load":
+                    torch_load_names.add(alias.asname or "load")
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        fn = node.func
+        if isinstance(fn, ast.Name) and fn.id in torch_load_names:
+            yield node
+        elif (isinstance(fn, ast.Attribute) and fn.attr == "load"
+              and isinstance(fn.value, ast.Name)
+              and fn.value.id in torch_module_names):
+            yield node
+
+
 class CheckpointGateTest(unittest.TestCase):
     def test_torch_release_parser(self):
         self.assertEqual(torch_version_tuple("2.10.0+cpu"), (2, 10, 0))
         self.assertEqual(torch_version_tuple("2.10.1"), (2, 10, 1))
-        self.assertEqual(torch_version_tuple("3.0.0.dev1"), (3, 0, 0))
-        for version in ("", "nightly", "2.10", "v2.10.0"):
+        self.assertEqual(torch_version_tuple("3.0.0"), (3, 0, 0))
+        self.assertEqual(torch_version_tuple("2.10.0+cpu"), (2, 10, 0))
+        for version in ("", "nightly", "2.10", "v2.10.0", "2.10.0.dev1",
+                        "3.0.0.dev1", "2.10.0rc1", "2.10.0a0+git"):
             with self.subTest(version=version):
                 with self.assertRaises(RuntimeError):
                     torch_version_tuple(version)
@@ -45,6 +73,17 @@ class CheckpointGateTest(unittest.TestCase):
             loader.assert_called_once()
 
 
+    def test_import_aliases_are_not_allowed_to_bypass_the_scan(self):
+        for snippet in (
+            "import torch; torch.load('untrusted.pt')",
+            "import torch as t; t.load('untrusted.pt')",
+            "from torch import load; load('untrusted.pt')",
+            "from torch import load as open_weights; open_weights('untrusted.pt')",
+        ):
+            with self.subTest(snippet=snippet):
+                calls = list(direct_torch_load_calls(ast.parse(snippet)))
+                self.assertEqual(len(calls), 1)
+
     def test_checkpoint_calls_route_through_one_gate(self):
         root = Path(__file__).resolve().parents[1]
         for file in sorted(root.rglob("*.py")):
@@ -52,22 +91,14 @@ class CheckpointGateTest(unittest.TestCase):
                 continue
             with self.subTest(source=str(file.relative_to(root))):
                 tree = ast.parse(file.read_text(encoding="utf-8"), filename=str(file))
-                for node in ast.walk(tree):
-                    if not isinstance(node, ast.Call):
-                        continue
-                    fn = node.func
-                    direct_load = (
-                        isinstance(fn, ast.Attribute) and fn.attr == "load"
-                        and isinstance(fn.value, ast.Name) and fn.value.id == "torch"
-                    )
-                    if direct_load:
-                        self.assertEqual(file.relative_to(root).as_posix(), "utils/checkpoint.py")
-                        self.assertTrue(any(
-                            kw.arg == "weights_only"
-                            and isinstance(kw.value, ast.Constant)
-                            and kw.value.value is True
-                            for kw in node.keywords
-                        ))
+                for call in direct_torch_load_calls(tree):
+                    self.assertEqual(file.relative_to(root).as_posix(), "utils/checkpoint.py")
+                    self.assertTrue(any(
+                        kw.arg == "weights_only"
+                        and isinstance(kw.value, ast.Constant)
+                        and kw.value.value is True
+                        for kw in call.keywords
+                    ))
 
 
 if __name__ == "__main__":
