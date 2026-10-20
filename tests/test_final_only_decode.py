@@ -57,11 +57,23 @@ class FinalOnlyDecodeTest(unittest.TestCase):
         tree = ast.parse((root / "scripts/eval_shard.py").read_text(encoding="utf-8"))
         run = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
                    and node.name == "run")
-        calls = [node.func for node in ast.walk(run) if isinstance(node, ast.Call)]
-        self.assertTrue(any(isinstance(fn, ast.Name) and fn.id == "decode_final_logits"
-                            for fn in calls))
-        self.assertFalse(any(isinstance(fn, ast.Attribute) and fn.attr == "idx_to_zhats"
-                             for fn in calls))
+        # Narrow structural guard: the logits passed into the consumer must
+        # come directly from the intended final-only decoder. This does not
+        # attempt Python dynamic alias/monkeypatch analysis.
+        calls = [node for node in ast.walk(run) if isinstance(node, ast.Call)]
+        picks = [node for node in calls
+                 if isinstance(node.func, ast.Name) and node.func.id == "pick_tokens"]
+        self.assertEqual(len(picks), 1)
+        self.assertEqual(len(picks[0].args), 1)
+        logits_call = picks[0].args[0]
+        self.assertIsInstance(logits_call, ast.Call)
+        self.assertIsInstance(logits_call.func, ast.Name)
+        self.assertEqual(logits_call.func.id, "decode_final_logits")
+        self.assertFalse(any(
+            isinstance(node.func, ast.Attribute)
+            and node.func.attr in ("idx_to_zhats", "reconstruct_multiscales", "decode_multiscales")
+            for node in calls
+        ))
 
 
 if __name__ == "__main__":
