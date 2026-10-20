@@ -13,8 +13,13 @@ import json
 import statistics
 import time
 from types import SimpleNamespace
+from pathlib import Path
+import sys
 
 import torch
+
+# Invocation by script path must find the owning repository without PYTHONPATH.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from models.quant import MultiscaleResidualVectorQuantizer
 
