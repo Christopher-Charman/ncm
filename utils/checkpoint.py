@@ -17,7 +17,7 @@ MINIMUM_RESTRICTED_TORCH = (2, 10, 0)
 
 def torch_version_tuple(version):
     """Read stable numeric prefix, including builds such as '2.10.0+cpu'."""
-    match = re.match(r"^([0-9]+)[.]([0-9]+)[.]([0-9]+)(?:$|[+.-])", str(version))
+    match = re.fullmatch(r"([0-9]+)[.]([0-9]+)[.]([0-9]+)(?:[+][0-9A-Za-z.-]+)?", str(version))
     if match is None:
         raise RuntimeError("Cannot establish installed PyTorch security version")
     return tuple(int(part) for part in match.groups())
