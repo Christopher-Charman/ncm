@@ -2,6 +2,8 @@
 
 Run: python -m unittest discover -s tests -p 'test_checkpoint_security.py' -v
 """
+import ast
+from pathlib import Path
 import unittest
 from unittest.mock import patch
 
@@ -41,6 +43,31 @@ class CheckpointGateTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "bad checkpoint"):
                 load_restricted_checkpoint("broken.pt")
             loader.assert_called_once()
+
+
+    def test_checkpoint_calls_route_through_one_gate(self):
+        root = Path(__file__).resolve().parents[1]
+        for file in sorted(root.rglob("*.py")):
+            if ".git" in file.parts:
+                continue
+            with self.subTest(source=str(file.relative_to(root))):
+                tree = ast.parse(file.read_text(encoding="utf-8"), filename=str(file))
+                for node in ast.walk(tree):
+                    if not isinstance(node, ast.Call):
+                        continue
+                    fn = node.func
+                    direct_load = (
+                        isinstance(fn, ast.Attribute) and fn.attr == "load"
+                        and isinstance(fn.value, ast.Name) and fn.value.id == "torch"
+                    )
+                    if direct_load:
+                        self.assertEqual(file.relative_to(root).as_posix(), "utils/checkpoint.py")
+                        self.assertTrue(any(
+                            kw.arg == "weights_only"
+                            and isinstance(kw.value, ast.Constant)
+                            and kw.value.value is True
+                            for kw in node.keywords
+                        ))
 
 
 if __name__ == "__main__":
