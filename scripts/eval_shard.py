@@ -42,6 +42,8 @@ split = a.split or CFG.eval.get("split", "test")
 n = a.n or int(CFG.eval.get("n_docs", 0))
 bs = a.bs or int(CFG.eval.batch_size)
 
+from utils.checkpoint import load_restricted_checkpoint
+
 CFG.tokenizer.vqvae.checkpoint_path = os.path.join(ck, CFG.checkpoints.tokenizer)
 for key, name in (('vocab_file_path', 'bpe_vocab'), ('merges_file_path', 'bpe_merges')):
     if CFG.checkpoints.get(name):
@@ -49,7 +51,7 @@ for key, name in (('vocab_file_path', 'bpe_vocab'), ('merges_file_path', 'bpe_me
 tk = VQVAETokenizer.from_config(CFG.tokenizer)
 tk.vqvae = tk.vqvae.cuda().eval()
 net = NextConceptTransformer(vqvae_local=tk.vqvae, config=CFG.model).cuda()
-sd = torch.load(os.path.join(ck, CFG.checkpoints.generator), map_location="cpu", weights_only=False)
+sd = load_restricted_checkpoint(os.path.join(ck, CFG.checkpoints.generator))
 net.load_state_dict(sd["model"], strict=True)
 net.eval()
 P = int(CFG.model.prefix_len)
@@ -59,11 +61,11 @@ EOS, PAD = tk.pre_tokenizer.eos_token_id, tk.pre_tokenizer.pad_token_id
 def load_allowance(spec):
     if ":" in spec:
         path, ref = spec.split(":", 1)
-        obj = torch.load(os.path.join(ck, path), map_location="cuda", weights_only=False)
+        obj = load_restricted_checkpoint(os.path.join(ck, path))
         for k in ref.split("."):
             obj = obj[k]
-        return obj.double()
-    return torch.load(os.path.join(ck, spec), map_location="cuda").double()
+        return obj.double().cuda()
+    return load_restricted_checkpoint(os.path.join(ck, spec)).double().cuda()
 
 
 ALLOW = load_allowance(str(G.frequency_allowance)) if G.get("frequency_allowance") else None
