@@ -140,8 +140,10 @@ RAW = []
 def run(x, l0=None):
     with torch.no_grad():
         g = net.generate(l0, x, temperature=temp, top_k=top_k, top_p=top_p, cfg_scale=cfg, cfg_null_eos=EOS)
-        _, zl = tk.vqvae.vq.idx_to_zhats(g, return_zlevels=True)
-        ids = pick_tokens(tk.vqvae.decoder(zl[-1])).tolist()
+        # Only the final latent is consumed here; avoid allocating every
+        # intermediate coarse-to-fine reconstruction for ordinary evaluation.
+        z_final = tk.vqvae.vq.idx_to_z_q(g)
+        ids = pick_tokens(tk.vqvae.decoder(z_final)).tolist()
         RAW.extend(ids)
         return [dec(r) for r in ids]
 
