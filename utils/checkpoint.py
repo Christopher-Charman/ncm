@@ -32,7 +32,7 @@ def load_restricted_checkpoint(path):
     installed = torch_version_tuple(torch.__version__)
     if installed < MINIMUM_RESTRICTED_TORCH:
         raise RuntimeError(
-            "NCM checkpoint loading disabled: PyTorch <=2.9.1 has a "
+            "NCM checkpoint loading disabled on PyTorch <2.10.0: versions <=2.9.1 have a "
             "weights_only deserialization vulnerability (CVE-2026-24747). "
             "Use a separately qualified PyTorch >=2.10.0 environment; "
             "do not fall back to weights_only=False."
