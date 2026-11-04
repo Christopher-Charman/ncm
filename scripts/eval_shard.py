@@ -3,6 +3,7 @@ import torch
 from omegaconf import OmegaConf
 sys.path.insert(0, os.environ.get("NCM_ROOT", os.getcwd()))
 from models.next_concept import NextConceptTransformer
+from utils.generation import decode_final_logits
 from tokenization.vqvae_tokenizer import VQVAETokenizer
 from transformers import AutoTokenizer
 
@@ -140,8 +141,9 @@ RAW = []
 def run(x, l0=None):
     with torch.no_grad():
         g = net.generate(l0, x, temperature=temp, top_k=top_k, top_p=top_p, cfg_scale=cfg, cfg_null_eos=EOS)
-        _, zl = tk.vqvae.vq.idx_to_zhats(g, return_zlevels=True)
-        ids = pick_tokens(tk.vqvae.decoder(zl[-1])).tolist()
+        # Only the final latent is consumed here; avoid allocating every
+        # intermediate coarse-to-fine reconstruction for ordinary evaluation.
+        ids = pick_tokens(decode_final_logits(tk.vqvae, g)).tolist()
         RAW.extend(ids)
         return [dec(r) for r in ids]
 
