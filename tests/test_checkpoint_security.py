@@ -4,10 +4,19 @@ Run: python -m unittest discover -s tests -p 'test_checkpoint_security.py' -v
 """
 import ast
 from pathlib import Path
+import pickle
+import tempfile
 import unittest
 from unittest.mock import patch
 
+import torch
 from utils.checkpoint import load_restricted_checkpoint, torch_version_tuple
+
+
+class SyntheticNonAllowlistedObject:
+    """Synthetic object used to confirm restricted deserialization refuses globals."""
+    def __init__(self, value):
+        self.value = value
 
 
 def direct_torch_load_calls(tree):
@@ -64,6 +73,34 @@ class CheckpointGateTest(unittest.TestCase):
             result = load_restricted_checkpoint("model.pt")
         self.assertIs(result, marker)
         loader.assert_called_once_with("model.pt", map_location="cpu", weights_only=True)
+
+    def test_real_patched_cpu_torch_restricted_checkpoint_roundtrip(self):
+        """Actual weights-only tensor load on patched PyTorch, never a download."""
+        if torch_version_tuple(torch.__version__) < (2, 10, 0):
+            self.skipTest("patched PyTorch environment required for real load")
+        with tempfile.TemporaryDirectory(
+            prefix="ncm-restricted-checkpoint-",
+            dir=str(Path(__file__).resolve().parents[1]),
+        ) as directory:
+            source = Path(directory) / "synthetic-weights.pt"
+            expected = {"model": {"weight": torch.arange(6, dtype=torch.float32).reshape(2, 3)}}
+            torch.save(expected, source)
+            result = load_restricted_checkpoint(source)
+            torch.testing.assert_close(result["model"]["weight"], expected["model"]["weight"])
+            self.assertEqual(result["model"]["weight"].device.type, "cpu")
+
+    def test_real_patched_cpu_torch_rejects_unallowlisted_pickle(self):
+        """Loading a local synthetic custom class must not use unsafe fallback."""
+        if torch_version_tuple(torch.__version__) < (2, 10, 0):
+            self.skipTest("patched PyTorch environment required for real load")
+        with tempfile.TemporaryDirectory(
+            prefix="ncm-restricted-checkpoint-",
+            dir=str(Path(__file__).resolve().parents[1]),
+        ) as directory:
+            source = Path(directory) / "synthetic-custom-class.pt"
+            torch.save({"payload": SyntheticNonAllowlistedObject("marker")}, source)
+            with self.assertRaises(pickle.UnpicklingError):
+                load_restricted_checkpoint(source)
 
     def test_loader_failure_never_falls_back_to_unsafe_unpickler(self):
         with patch("utils.checkpoint.torch.__version__", "2.10.0"), \
